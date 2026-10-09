@@ -52,6 +52,7 @@ def classify(data: bytes, media_type: str):
         return None, MESSAGES["timeout"]
     except httpx.HTTPStatusError as e:
         code = e.response.status_code
+        print(f"Anthropic API error {code}: {e.response.text[:1000]}")
         return None, MESSAGES["auth"] if code in (401, 403) else MESSAGES["api"].format(code=code)
     except httpx.HTTPError:
         return None, MESSAGES["api"].format(code="network")
