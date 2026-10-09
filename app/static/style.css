@@ -64,3 +64,5 @@ table,thead,tbody,tr,td{display:block}thead{position:absolute;left:-999px}tr{pad
 .qr{display:flex;gap:20px;align-items:center;margin:20px 0;flex-wrap:wrap}.ai{background:#F6F8F8;padding:12px 16px;border-radius:8px;margin-top:8px}#aiout{margin-top:8px;font-size:14px}
 .card.form .grid4{gap:0 16px}
 .ok{background:#E3F4EA;border-color:var(--green)}nav form{margin:0}
+.photo{max-width:100%;border-radius:8px;display:block;margin-bottom:12px}#pick,#map{height:280px;border-radius:8px;margin:8px 0;z-index:0}
+.geo{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:14px 0}.geo legend{font-weight:600;padding:0 6px}.narrow.wide{max-width:640px}

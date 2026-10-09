@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
+from sqlalchemy import Column, LargeBinary
 from sqlmodel import SQLModel, Field
 
 
@@ -18,6 +19,8 @@ class WasteRequest(SQLModel, table=True):
     provider_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     tracking_id: Optional[str] = Field(default=None, index=True)
     completed_at: Optional[datetime] = None
+    lat: Optional[float] = None  # optional map coordinates; the address field stays the primary location
+    lng: Optional[float] = None
     waste_type: str
     tons: float
     location: str
@@ -64,6 +67,7 @@ class AuditLog(SQLModel, table=True):
 
 
 class WasteClassification(SQLModel, table=True):
+    # Historical records from the retired AI feature. Kept (read-only) so old data is never lost.
     id: Optional[int] = Field(default=None, primary_key=True)
     request_id: int = Field(foreign_key="wasterequest.id", index=True)
     material: str
@@ -81,3 +85,13 @@ class EnvironmentalFactor(SQLModel, table=True):
     unit: str = "tCO2e/tonne"
     source: str = ""  # empty = unverified placeholder
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class RequestPhoto(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    request_id: int = Field(foreign_key="wasterequest.id", index=True, unique=True)  # one photo per request
+    content_type: str = "image/jpeg"
+    size: int
+    data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))  # stored in the database: Render's web disk is ephemeral
+    uploaded_by: int = Field(foreign_key="user.id")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -1,12 +1,15 @@
 """Routes for notifications, tracking/QR, manifests, AI, analytics and audit logs."""
+import csv, io, re
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, case
 from sqlmodel import Session, select
 from app.main import page, current, go, engine, CO2
 from app.models import *  # noqa
-from app.services import ai_classifier, qr_service, manifest_service
+from app.services import qr_service, manifest_service
+from app.services.photo_service import process_photo, MAX_UPLOAD
 from app.services.impact_calculator import estimate
 from app.services.notification_service import audit
 
@@ -77,8 +80,9 @@ def manifest(r: Request, rid: int):
             rows = [("Request ID", f"#{q.id}"), ("Tracking ID", q.tracking_id), ("Builder", nm.get(q.builder_id)), ("Provider", nm.get(q.provider_id)),
                     ("Material", q.waste_type), ("Quantity", f"{q.tons} tonnes"), ("Pickup location", q.location), ("Pickup date", q.pickup_date),
                     ("Completed", f"{q.completed_at:%d %b %Y}" if q.completed_at else "-"), ("Status", q.status),
-                    ("Est. CO2e avoided", f"{co2} t" + ("" if ok else " (methodology under review)")),
-                    ("AI classification", (f"Used: {ai.material}" + (f" ({ai.confidence:.0%} model-reported confidence)" if ai.confidence is not None else "")) if ai else "Not used")]
+                    ("Est. CO2e avoided", f"{co2} t" + ("" if ok else " (methodology under review)"))]
+            if ai:
+                rows.append(("Earlier AI suggestion", f"{ai.material} (historical record)"))
             pdf = manifest_service.build_pdf(f"MF-{q.tracking_id}", rows)
         except Exception:
             raise HTTPException(500, "Unable to generate the manifest.")
@@ -87,18 +91,42 @@ def manifest(r: Request, rid: int):
     return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
-@router.post("/ai/classify", tags=["ai"])
-async def ai_classify(r: Request, image: UploadFile = File(...)):
+def _participant(u, q):
+    return bool(u and q and (u.role == "admin" or u.id in (q.builder_id, q.provider_id)))
+
+
+@router.get("/requests/{rid}/photo", tags=["requests"])
+def photo(r: Request, rid: int):
     with Session(engine) as s:
-        if not current(r, s):
+        u, q = current(r, s), s.get(WasteRequest, rid)
+        if not _participant(u, q):
             raise HTTPException(403, DENIED)
-    if image.content_type not in ("image/jpeg", "image/png", "image/webp"):
-        return JSONResponse({"ok": False, "message": "Please upload a JPEG, PNG or WebP image."})
-    data = await image.read(5_000_001)  # image is sent to the API, never written to disk
-    if len(data) > 5_000_000:
-        return JSONResponse({"ok": False, "message": "Image is too large (5 MB max)."})
-    c, err = ai_classifier.classify(data, image.content_type)
-    return JSONResponse({"ok": True, "result": c.model_dump()} if c else {"ok": False, "message": err})
+        p = s.exec(select(RequestPhoto).where(RequestPhoto.request_id == rid)).first()
+        if not p:
+            raise HTTPException(404, "No photo for this request.")
+        data, ctype = p.data, p.content_type
+    return Response(data, media_type=ctype, headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+
+
+@router.post("/requests/{rid}/photo", tags=["requests"])
+def upload_photo(r: Request, rid: int, photo: UploadFile = File(...)):
+    with Session(engine) as s:
+        u, q = current(r, s, "builder"), s.get(WasteRequest, rid)
+        if not u or not q or q.builder_id != u.id:
+            raise HTTPException(403, DENIED)
+        try:
+            jpeg = process_photo(photo.file.read(MAX_UPLOAD + 1))
+        except ValueError as e:
+            r.session["flash"] = "err:" + str(e)
+            return go(f"/requests/{rid}")
+        p = s.exec(select(RequestPhoto).where(RequestPhoto.request_id == rid)).first()
+        if p:
+            p.data, p.size, p.uploaded_by, p.created_at = jpeg, len(jpeg), u.id, datetime.now(timezone.utc)
+        else:
+            p = RequestPhoto(request_id=rid, size=len(jpeg), data=jpeg, uploaded_by=u.id)
+        s.add(p); audit(s, u, "uploaded photo", "request", rid); s.commit()
+    r.session["flash"] = "Photo saved."
+    return go(f"/requests/{rid}")
 
 
 @router.get("/analytics", tags=["analytics"])
@@ -122,13 +150,50 @@ def analytics(r: Request, material: str = "", status: str = "", date_from: str =
         total = s.exec(f(select(func.count()).select_from(W))).one()
         active = s.exec(f(select(func.count()).select_from(W)).where(W.status != "Completed")).one()
         approved = s.exec(select(func.count()).select_from(User).where(User.role == "provider", User.approved == True)).one()  # noqa: E712
+        mon = func.substr(W.pickup_date, 1, 7)
+        mrows = s.exec(f(select(mon, func.count(), func.sum(case((W.status == "Completed", 1), else_=0)), func.sum(W.tons),
+                                func.sum(case((W.status == "Completed", W.tons), else_=0))).group_by(mon).order_by(mon))).all()
+        months = [dict(month=m, requests=int(n), completed=int(c or 0), requested=round(float(t or 0), 1), diverted=round(float(d or 0), 1),
+                       rate=round(100 * (c or 0) / n) if n else 0) for m, n, c, t, d in mrows]
+        tn, tc = sum(x["requests"] for x in months), sum(x["completed"] for x in months)
+        tr, td = sum(x["requested"] for x in months), sum(x["diverted"] for x in months)
+        stats = dict(requests=tn, completed=tc, completion_rate=round(100 * tc / tn) if tn else 0, requested=round(tr, 1), diverted=round(td, 1),
+                     diversion_rate=round(100 * td / tr) if tr else 0, avg_job=round(td / tc, 1) if tc else 0, top=max(by, key=lambda x: x[1])[0] if by else None)
         co2, ok = estimate(s, dict(by))
     kpi = {"tons": round(sum(v for _, v in by), 1), "co2": co2, "verified": ok, "jobs": sum(1 for _ in by) and s_count(by, stat), "active": active, "providers": approved, "total": total}
-    return page(r, "analytics.html", by=by, over=over, stat=stat, prov=prov, kpi=kpi, materials=list(CO2), f=dict(material=material, status=status, date_from=date_from, date_to=date_to))
+    return page(r, "analytics.html", months=months, stats=stats, trend=[(m["month"], m["diverted"]) for m in months], by=by, over=over, stat=stat, prov=prov, kpi=kpi, materials=list(CO2), f=dict(material=material, status=status, date_from=date_from, date_to=date_to))
 
 
 def s_count(by, stat):
     return int(dict(stat).get("Completed", 0))
+
+
+@router.get("/analytics/report", tags=["analytics"])
+def analytics_report(r: Request, month: str = "", fmt: str = "csv"):
+    month = month or datetime.now().strftime("%Y-%m")
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month) or fmt not in ("csv", "pdf"):
+        raise HTTPException(400, "Choose a month like 2026-10 and a format of csv or pdf.")
+    W = WasteRequest
+    with Session(engine) as s:
+        u = current(r, s)
+        if not u:
+            raise HTTPException(403, DENIED)
+        sel = W.pickup_date.startswith(month)
+        total, done = s.exec(select(func.count(), func.sum(case((W.status == "Completed", 1), else_=0))).where(sel)).one()
+        done, req_t = int(done or 0), float(s.exec(select(func.sum(W.tons)).where(sel)).one() or 0)
+        by = [(m, float(t), int(n)) for m, t, n in s.exec(select(W.waste_type, func.sum(W.tons), func.count()).where(sel, W.status == "Completed").group_by(W.waste_type).order_by(W.waste_type)).all()]
+        co2, ok = estimate(s, {m: t for m, t, _ in by})
+        audit(s, u, "downloaded monthly report", "report", None, f"{month} {fmt}"); s.commit()
+    div_t = sum(t for _, t, _ in by)
+    rows = [("Month (by pickup date)", month), ("Requests", total), ("Completed jobs", done), ("Completion rate", f"{round(100 * done / total) if total else 0}%"),
+            ("Tonnes requested", f"{req_t:.1f}"), ("Tonnes diverted", f"{div_t:.1f}")]
+    rows += [(f"  {m}", f"{t:.1f} t in {n} job(s)") for m, t, n in by]
+    rows.append(("Est. CO2e avoided", f"{co2} t" + ("" if ok else " (methodology under review)")))
+    if fmt == "pdf":
+        body, mt = manifest_service.build_pdf(month, rows, title="Monthly Waste Report", heading="Report"), "application/pdf"
+    else:
+        buf = io.StringIO(); w = csv.writer(buf); w.writerow(["WasteMaster monthly report"]); w.writerows(rows); body, mt = buf.getvalue(), "text/csv"
+    return Response(body, media_type=mt, headers={"Content-Disposition": f'attachment; filename="wastemaster-report-{month}.{fmt}"'})
 
 
 @router.get("/admin/audit", tags=["admin"])

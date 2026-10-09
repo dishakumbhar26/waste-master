@@ -12,7 +12,6 @@ services:
       - {key: DATABASE_URL, fromDatabase: {name: wastemaster-db, property: connectionString}}
       - {key: ADMIN_EMAIL, sync: false}
       - {key: ADMIN_PASSWORD, sync: false}
-      - {key: ANTHROPIC_API_KEY, sync: false}
 databases:
   - name: wastemaster-db
     databaseName: wastemaster

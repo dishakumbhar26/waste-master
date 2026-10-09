@@ -2,7 +2,6 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
-from app.services import ai_classifier
 
 
 def tok(c):
@@ -66,17 +65,11 @@ def test_no_duplicate_notifications(world):
     assert n == 1
 
 
-def test_ai_validation_and_fallback(world):
-    good = '{"material":"Concrete","confidence":0.9,"recyclable":true,"recommended_action":"Recycle","possible_reuse":"Aggregate"}'
-    assert ai_classifier.parse("```json\n" + good + "\n```").material == "Concrete"
-    for bad in ('{"material":"Wood","confidence":1.7,"recyclable":true,"recommended_action":"x"}', "nonsense"):
-        with pytest.raises(Exception):
-            ai_classifier.parse(bad)
-    r = world["b"].post("/ai/classify", data={"csrf_token": tok(world["b"])}, files={"image": ("a.png", b"x", "image/png")})
-    assert "ANTHROPIC_API_KEY" in r.json()["message"]
-    # AI failure / garbage payload must not block request creation
-    assert post(world["b"], "/requests/new", waste_type="Wood", tons=2, location="Pune", pickup_date="2026-12-01", ai_json="garbage").status_code == 200
-    assert "Wood" in world["b"].get("/dashboard").text
+def test_ai_endpoint_removed_and_old_form_field_ignored(world):
+    b = world["b"]
+    assert b.post("/ai/classify", data={"csrf_token": tok(b)}).status_code in (404, 405)
+    assert post(b, "/requests/new", waste_type="Wood", tons=2, location="Pune", pickup_date="2026-12-01", ai_json="garbage").status_code == 200
+    assert "Wood" in b.get("/dashboard").text
 
 
 def test_pages_and_docs(world):

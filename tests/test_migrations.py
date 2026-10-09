@@ -21,9 +21,12 @@ def test_existing_database_upgrades_in_place(tmp_path):
         assert c.execute(text("SELECT username,password FROM user")).one() == ("keep", "salt$hash")
         assert c.execute(text("SELECT tracking_id,tons FROM wasterequest")).one() == ("WM-2026-000001", 3.0)
         assert c.execute(text("SELECT confidence FROM wasteclassification")).scalar() == 0.9
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0002"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0003"
     with eng.begin() as c:                                       # new schema allows an unknown confidence
         c.execute(text("INSERT INTO wasteclassification (request_id,material,confidence,recyclable,recommended_action,possible_reuse,created_at) VALUES (1,'Wood',NULL,1,'x','',CURRENT_TIMESTAMP)"))
+    with eng.connect() as c:
+        assert c.execute(text("SELECT lat, lng FROM wasterequest")).one() == (None, None)   # new columns are nullable
+        assert c.execute(text("SELECT count(*) FROM requestphoto")).scalar() == 0
     migrate(url)                                                 # idempotent
 
 

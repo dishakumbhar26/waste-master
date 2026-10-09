@@ -7,12 +7,14 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from fastapi import HTTPException, Depends
+from datetime import date
+from fastapi import HTTPException, Depends, File, UploadFile
 from starlette.exceptions import HTTPException as SHTTP
 from sqlalchemy import func
 from sqlmodel import SQLModel, Session, create_engine, select
 from app.models import *  # noqa
-from app.services.ai_classifier import Classification
+from app.services.geo import parse_coords
+from app.services.photo_service import process_photo, MAX_UPLOAD
 from app.services.impact_calculator import estimate, ensure_factors
 from app.services.notification_service import notify, notify_role, audit
 from app.services.workflow import transition, WorkflowError
@@ -74,7 +76,7 @@ def current(r: Request, s: Session, *roles):
 
 @app.exception_handler(SHTTP)
 async def http_err(r: Request, e: SHTTP):
-    msg = "Page not found." if e.status_code == 404 else (e.detail if e.status_code in (401, 403) else "Something went wrong.")
+    msg = "Page not found." if e.status_code == 404 else (e.detail if e.status_code in (400, 401, 403) else "Something went wrong.")
     return page(r, "error.html", status=e.status_code, msg=msg)
 
 
@@ -171,23 +173,38 @@ def dashboard(r: Request):
         return page(r, "dashboard.html", mine=mine, open=opn, statuses=STATUSES)
 
 
+def _form(r, error=None, **v):
+    return page(r, "new.html", types=list(CO2), error=error, v=v)
+
+
 @app.get("/requests/new")
 def new_form(r: Request):
     with Session(engine) as s:
         if not current(r, s, "builder"):
             return go("/login")
-    return page(r, "new.html", types=list(CO2), error=None)
+    return _form(r)
 
 
 @app.post("/requests/new")
-def new_request(r: Request, waste_type: str = Form(...), tons: float = Form(...), location: str = Form(...), pickup_date: str = Form(...), ai_json: str = Form("")):
+def new_request(r: Request, waste_type: str = Form(...), tons: float = Form(...), location: str = Form(...), pickup_date: str = Form(...),
+                lat: str = Form(""), lng: str = Form(""), photo: Optional[UploadFile] = File(None)):
+    v = dict(waste_type=waste_type, tons=tons, location=location, pickup_date=pickup_date, lat=lat, lng=lng)
     with Session(engine) as s:
         u = current(r, s, "builder")
         if not u:
             return go("/login")
-        if waste_type not in CO2 or tons <= 0:
-            return page(r, "new.html", types=list(CO2), error="Choose a waste type and enter a quantity above zero.")
-        q = WasteRequest(builder_id=u.id, waste_type=waste_type, tons=tons, location=location, pickup_date=pickup_date)
+        if waste_type not in CO2 or tons <= 0 or not location.strip():
+            return _form(r, "Choose a waste type, enter a quantity above zero and a site address.", **v)
+        try:
+            date.fromisoformat(pickup_date)
+        except ValueError:
+            return _form(r, "Enter a valid pickup date.", **v)
+        try:  # coordinate and photo errors are ValueErrors carrying user-safe messages
+            la, ln = parse_coords(lat, lng)
+            jpeg = process_photo(photo.file.read(MAX_UPLOAD + 1)) if photo is not None and photo.filename else None
+        except ValueError as e:
+            return _form(r, str(e), **v)
+        q = WasteRequest(builder_id=u.id, waste_type=waste_type, tons=tons, location=location.strip(), pickup_date=pickup_date, lat=la, lng=ln)
         s.add(q); s.commit(); s.refresh(q)
         q.tracking_id = f"WM-{datetime.now().year}-{q.id:06d}"
         s.add(q); s.add(StatusLog(request_id=q.id, status="Open", by=u.username))
@@ -195,13 +212,9 @@ def new_request(r: Request, waste_type: str = Form(...), tons: float = Form(...)
         notify(s, u.id, f"Your pickup request #{q.id} was created.", "request", f"req{q.id}:created")
         for pv in s.exec(select(User).where(User.role == "provider", User.approved == True)).all():  # noqa: E712
             notify(s, pv.id, f"New {waste_type} pickup request available (#{q.id}).", "job", f"job{q.id}:{pv.id}")
-        if ai_json:
-            try:  # never trust the client: re-validate. A bad AI payload must not block the request.
-                c = Classification.model_validate_json(ai_json)
-                s.add(WasteClassification(request_id=q.id, **c.model_dump()))
-                audit(s, u, "AI classification saved", "request", q.id, c.material)
-            except Exception:
-                pass
+        if jpeg:
+            s.add(RequestPhoto(request_id=q.id, size=len(jpeg), data=jpeg, uploaded_by=u.id))
+            audit(s, u, "uploaded photo", "request", q.id)
         s.commit()
     return go("/dashboard")
 
@@ -216,7 +229,8 @@ def detail(r: Request, rid: int):
         logs = s.exec(select(StatusLog).where(StatusLog.request_id == rid).order_by(StatusLog.id)).all()
         ids = [i for i in (q.builder_id, q.provider_id) if i]
         nm = {x.id: x.username for x in s.exec(select(User).where(User.id.in_(ids))).all()}
-        return page(r, "detail.html", q=q, logs=logs, bname=nm.get(q.builder_id), pname=nm.get(q.provider_id))
+        has_photo = s.exec(select(RequestPhoto.id).where(RequestPhoto.request_id == rid)).first() is not None
+        return page(r, "detail.html", q=q, logs=logs, bname=nm.get(q.builder_id), pname=nm.get(q.provider_id), has_photo=has_photo)
 
 
 def _move(r, rid, roles):

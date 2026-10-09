@@ -1,15 +1,30 @@
-{% extends "base.html" %}{% block title %}Request a pickup · WasteMaster{% endblock %}{% block body %}
-<form class="card form narrow" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><h2>Request a pickup</h2>{% if error %}<div class="alert err" role="alert">{{ error }}</div>{% endif %}
-<div class="ai"><label>Waste photo (optional, AI-assisted)<input type="file" id="photo" accept="image/jpeg,image/png,image/webp"></label>
-<button type="button" class="btn btn-secondary btn-sm" id="aibtn">Classify photo</button><div id="aiout" role="status" aria-live="polite"></div><input type="hidden" name="ai_json" id="ai_json"></div>
-<label>Waste type<select id="wt" name="waste_type">{% for t in types %}<option>{{ t }}</option>{% endfor %}</select></label>
-<label>Quantity (tonnes)<input type="number" step="0.1" min="0.1" name="tons" required></label>
-<label>Site address<input name="location" autocomplete="street-address" required></label>
-<label>Preferred pickup date<input type="date" name="pickup_date" required></label>
-<button class="btn btn-block">Post request</button><a class="btn btn-secondary btn-block" href="/dashboard">Cancel</a></form><script>
-const out=document.getElementById('aiout');document.getElementById('aibtn').addEventListener('click',async()=>{const f=document.getElementById('photo').files[0];if(!f){out.textContent='Choose a photo first.';return}
-out.textContent='Classifying…';const fd=new FormData();fd.append('image',f);fd.append('csrf_token',document.querySelector('meta[name=csrf-token]').content);
-try{const j=await (await fetch('/ai/classify',{method:'POST',body:fd})).json();if(!j.ok){out.textContent=j.message;return}const c=j.result;
-out.innerHTML='<p><b></b> <span></span></p><button type="button" class="btn btn-sm" id="use">Use AI prediction</button>';
-out.querySelector('b').textContent='Predicted: '+c.material+(c.confidence!=null?' ('+Math.round(c.confidence*100)+'% model-reported confidence)':'');out.querySelector('span').textContent='Recyclable: '+(c.recyclable?'yes':'no')+'. '+c.recommended_action+(c.possible_reuse?' Possible reuse: '+c.possible_reuse:'')+' AI can be wrong; you can choose manually.';
-document.getElementById('use').onclick=()=>{document.getElementById('wt').value=c.material;document.getElementById('ai_json').value=JSON.stringify(c);out.insertAdjacentText('beforeend',' Applied.')}}catch(e){out.textContent='AI classification unavailable — select material manually.'}});</script>{% endblock %}
+{% extends "base.html" %}{% block title %}Request a pickup · WasteMaster{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>{% endblock %}
+{% block body %}
+<form class="card form narrow wide" method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><h2>Request a pickup</h2>
+{% if error %}<div class="alert err" role="alert">{{ error }}</div>{% endif %}
+<label>Waste type<select name="waste_type">{% for t in types %}<option {{ 'selected' if v.waste_type==t }}>{{ t }}</option>{% endfor %}</select></label>
+<label>Quantity (tonnes)<input type="number" step="0.1" min="0.1" name="tons" value="{{ v.tons or '' }}" required></label>
+<label>Site address<input name="location" autocomplete="street-address" value="{{ v.location or '' }}" required></label>
+<label>Preferred pickup date<input type="date" name="pickup_date" value="{{ v.pickup_date or '' }}" required></label>
+<fieldset class="geo"><legend>Map location (optional)</legend>
+<p class="muted">Click the map to drop a pin, or use your current location. Your address above is still used.</p>
+<div id="pick" role="application" aria-label="Map: click to set the pickup location"></div>
+<button type="button" class="btn btn-secondary btn-sm" id="locate">Use my current location</button> <small id="geomsg" role="status"></small>
+<div class="grid2"><label>Latitude<input name="lat" id="lat" inputmode="decimal" value="{{ v.lat or '' }}"></label><label>Longitude<input name="lng" id="lng" inputmode="decimal" value="{{ v.lng or '' }}"></label></div></fieldset>
+<label>Photo of the waste (optional · JPEG, PNG or WebP · 8 MB max)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp"></label>
+<small class="muted">Saved with the request as documentation. Location data embedded in the photo is removed.</small>
+<button class="btn btn-block">Post request</button><a class="btn btn-secondary btn-block" href="/dashboard">Cancel</a></form>
+<script>window.addEventListener('load',()=>{const msg=document.getElementById('geomsg'),la=document.getElementById('lat'),ln=document.getElementById('lng');
+if(!window.L){msg.textContent='Map unavailable. You can still type coordinates or leave them blank.';document.getElementById('pick').style.display='none'}
+else{const has=la.value&&ln.value,map=L.map('pick').setView(has?[+la.value,+ln.value]:[20.59,78.96],has?15:4);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+let pin=has?L.marker([+la.value,+ln.value]).addTo(map):null;
+const set=(a,b,z)=>{la.value=a.toFixed(6);ln.value=b.toFixed(6);pin?pin.setLatLng([a,b]):pin=L.marker([a,b]).addTo(map);if(z)map.setView([a,b],z)};
+map.on('click',e=>set(e.latlng.lat,e.latlng.lng));
+[la,ln].forEach(i=>i.addEventListener('change',()=>{if(!isNaN(+la.value)&&!isNaN(+ln.value)&&la.value&&ln.value)set(+la.value,+ln.value,15)}));
+window.__set=set}
+document.getElementById('locate').addEventListener('click',()=>{if(!navigator.geolocation){msg.textContent='Your browser does not support location.';return}
+msg.textContent='Asking for your location…';navigator.geolocation.getCurrentPosition(p=>{msg.textContent='Location set. You can adjust the pin.';
+if(window.__set)window.__set(p.coords.latitude,p.coords.longitude,16);else{la.value=p.coords.latitude.toFixed(6);ln.value=p.coords.longitude.toFixed(6)}},
+e=>{msg.textContent=e.code===1?'Location permission was denied. You can click the map or leave this blank.':'Could not get your location. You can click the map instead.'},{timeout:15000})})});</script>{% endblock %}
