@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Analytics · WasteMaster{% endblock %}
+{% macro bars(items, unit) %}{% set mx = (items|map(attribute=1)|max) if items else 1 %}{% for k,v in items %}<div class="bar"><span>{{ k }}</span><div class="track"><i style="width:{{ ((v/mx*100)|round) if mx else 0 }}%"></i></div><b>{{ v|round(1) }}{{ unit }}</b></div>{% else %}<div class="empty"><p>Not enough data yet.</p></div>{% endfor %}{% endmacro %}
+{% block header %}<div class="page-head"><div class="container"><h1>Analytics</h1><p>Aggregated in the database from real requests.</p></div></div>{% endblock %}
+{% block body %}
+<form class="card form" method="get"><div class="grid4"><label>Material<select name="material"><option value="">All</option>{% for m in materials %}<option {{ 'selected' if f.material==m }}>{{ m }}</option>{% endfor %}</select></label>
+<label>Status<select name="status"><option value="">All</option>{% for m in ['Open','Scheduled','Picked up','Completed'] %}<option {{ 'selected' if f.status==m }}>{{ m }}</option>{% endfor %}</select></label>
+<label>From<input type="date" name="date_from" value="{{ f.date_from }}"></label><label>To<input type="date" name="date_to" value="{{ f.date_to }}"></label></div><button class="btn btn-sm">Apply filters</button></form>
+<div class="grid3" style="margin-top:20px"><div class="kpi"><b>{{ kpi.tons }} t</b><span>Total waste diverted</span></div><div class="kpi"><b>{{ kpi.co2 }} t</b><span>Estimated CO₂e avoided{{ '' if kpi.verified else ' — methodology under review' }}</span></div><div class="kpi"><b>{{ kpi.jobs }}</b><span>Completed jobs</span></div>
+<div class="kpi"><b>{{ kpi.active }}</b><span>Active requests</span></div><div class="kpi"><b>{{ kpi.providers }}</b><span>Approved providers</span></div><div class="kpi"><b>{{ kpi.total }}</b><span>Total requests</span></div></div>
+<div class="grid2"><div><h2>Waste by material</h2>{{ bars(by,' t') }}</div><div><h2>Diverted over time</h2>{{ bars(over,' t') }}</div><div><h2>Pickup status</h2>{{ bars(stat,'') }}</div><div><h2>Provider performance (tonnes)</h2>{{ bars(prov,' t') }}</div></div>{% endblock %}

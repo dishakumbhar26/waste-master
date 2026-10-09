@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block title %}Notifications · WasteMaster{% endblock %}
+{% block header %}<div class="page-head"><div class="container row"><div><h1>Notifications</h1></div>{% if unread %}<form method="post" action="/notifications/read"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-secondary">Mark all as read</button></form>{% endif %}</div></div>{% endblock %}
+{% block body %}{% for n in rows %}<div class="card row" style="margin-bottom:12px{{ ';opacity:.65' if n.is_read }}"><span>{{ n.message }}<br><small>{{ n.created_at.strftime('%d %b %Y %H:%M') }} UTC</small></span>{% if not n.is_read %}<form method="post" action="/notifications/read"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="nid" value="{{ n.id }}"><button class="btn btn-sm">Mark read</button></form>{% endif %}</div>
+{% else %}<div class="empty"><h3>You’re all caught up.</h3></div>{% endfor %}{% endblock %}

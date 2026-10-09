@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}"><title>{% block title %}WasteMaster{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css"></head><body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav"><div class="container nav-in">
+<a class="logo" href="/">WASTE<span>MASTER</span></a>
+<button class="burger" aria-label="Open menu" aria-expanded="false" aria-controls="menu"><span></span><span></span><span></span></button>
+<nav id="menu" aria-label="Main">
+<a href="/impact">Impact</a><a href="/exchange">Material Exchange</a><a href="/about">About</a>
+{% if user %}<a href="/dashboard">Dashboard</a><a href="/analytics">Analytics</a><a href="/notifications">Notifications{% if unread %} <span class="pill">{{ unread }}</span>{% endif %}</a>{% if user.role=='admin' %}<a href="/admin">Admin Panel</a><a href="/admin/audit">Audit Logs</a>{% endif %}
+<span class="who">{{ user.username }} <small>{{ user.role|capitalize }}</small></span><form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-secondary btn-sm">Log out</button></form>
+{% else %}<a href="/login">Log in</a><a class="btn btn-sm" href="/register">Sign up</a>{% endif %}
+</nav></div></header>
+<div class="stripe" aria-hidden="true"></div>
+{% block header %}{% endblock %}
+{% if flash %}<div class="container" style="padding-top:16px"><div class="alert ok" role="status">{{ flash }}</div></div>{% endif %}
+<main id="main" class="container">{% block body %}{% endblock %}</main>
+<footer class="footer"><div class="container foot-in">
+<div><div class="logo">WASTE<span>MASTER</span></div><p>Smart construction waste management for a cleaner future.</p></div>
+<div><h4>Explore</h4><a href="/">Home</a><a href="/impact">Impact</a><a href="/exchange">Material Exchange</a><a href="/dashboard">Dashboard</a><a href="/about">About</a></div>
+<div><h4>Built with</h4><p>FastAPI · Python · SQLModel · PostgreSQL</p></div></div></footer>
+<script>const b=document.querySelector('.burger'),m=document.getElementById('menu');b.addEventListener('click',()=>{const o=m.classList.toggle('open');b.setAttribute('aria-expanded',o);});</script>
+</body></html>

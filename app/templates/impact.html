@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Impact · WasteMaster{% endblock %}
+{% block header %}<div class="page-head"><div class="container"><h1>Environmental Impact</h1><p>Figures come from completed pickups.</p></div></div>{% endblock %}
+{% block body %}<div class="grid3"><div class="kpi"><b>{{ t.tons }} t</b><span>Total waste diverted</span></div><div class="kpi"><b>{{ t.co2 }} t</b><span>Estimated CO₂e avoided</span></div><div class="kpi"><b>{{ t.jobs }}</b><span>Completed jobs</span></div></div>
+<h2>Waste by material</h2>
+{% set mx = (t.by.values()|list|max) if t.by else 1 %}
+{% for k,v in t.by.items() %}<div class="bar"><span>{{ k }}</span><div class="track"><i style="width:{{ (v/mx*100)|round }}%"></i></div><b>{{ v|round(1) }} t</b></div>
+{% else %}<div class="empty"><h3>Nothing completed yet.</h3><p>Finish a pickup and it appears here.</p></div>{% endfor %}
+<p class="muted">CO₂e estimate — methodology under review. Placeholder per-material factors in use ({% for k,v in co2.items() %}{{ k }} {{ v }}{{ ', ' if not loop.last }}{% endfor %} tCO₂e per tonne); not independently verified.</p>{% endblock %}

@@ -1,0 +1,3 @@
+{% extends "base.html" %}{% block title %}Track {{ q.tracking_id }}{% endblock %}
+{% block header %}<div class="page-head"><div class="container"><h1>{{ q.tracking_id }}</h1><p><span class="badge s-{{ q.status|replace(' ','') }}">{{ q.status }}</span></p></div></div>{% endblock %}
+{% block body %}<div class="card narrow"><dl><dt>Material</dt><dd>{{ q.waste_type }}</dd><dt>Quantity</dt><dd>{{ q.tons }} t</dd><dt>Pickup date</dt><dd>{{ q.pickup_date }}</dd><dt>Provider</dt><dd>{{ prov or 'Not assigned yet' }}</dd></dl></div>{% endblock %}

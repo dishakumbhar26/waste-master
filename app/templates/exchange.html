@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Material Exchange · WasteMaster{% endblock %}
+{% block header %}<div class="page-head"><div class="container"><h1>Material Exchange</h1><p>Leftover bricks, steel, tiles and timber, ready for the next build.</p></div></div>{% endblock %}
+{% block body %}
+{% if user %}<form class="card form" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><h3>List a material</h3><div class="grid2"><label>Material<input name="material" required></label><label>Quantity<input name="quantity" required></label><label>Location<input name="location" required></label><label>Note<input name="note"></label></div><button class="btn">List material</button></form>
+{% else %}<div class="alert warn"><a href="/login">Log in</a> to list materials.</div>{% endif %}
+<h2>Available materials</h2>
+{% if rows %}<div class="grid3">{% for l in rows %}<div class="card"><h3>{{ l.material }}</h3><p>{{ l.quantity }} · {{ l.location }}</p>{% if l.note %}<p class="muted">{{ l.note }}</p>{% endif %}</div>{% endfor %}</div>
+{% else %}<div class="empty"><h3>No materials listed yet.</h3><p>List leftover materials so other builders can reuse them.</p></div>{% endif %}{% endblock %}

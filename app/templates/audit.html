@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}Audit Logs · WasteMaster{% endblock %}
+{% block header %}<div class="page-head"><div class="container"><h1>Audit Logs</h1></div></div>{% endblock %}
+{% block body %}{% if rows %}<div class="table-wrap"><table><thead><tr><th>Time (UTC)</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Detail</th></tr></thead><tbody>
+{% for a in rows %}<tr><td data-label="Time">{{ a.timestamp.strftime('%d %b %Y %H:%M') }}</td><td data-label="User">{{ a.actor }}</td><td data-label="Action">{{ a.action }}</td><td data-label="Entity">{{ a.entity_type }}</td><td data-label="ID">{{ a.entity_id or '' }}</td><td data-label="Detail">{{ a.detail }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<div class="empty"><h3>No activity recorded yet.</h3></div>{% endif %}{% endblock %}

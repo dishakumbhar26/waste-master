@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% block body %}
+<section class="hero"><div><h1>Smart Construction Waste Management</h1>
+<p class="lead">Connect construction sites with verified recyclers, track every pickup, and measure environmental impact.</p>
+<div class="actions"><a class="btn" href="{{ '/requests/new' if user and user.role=='builder' else '/register' }}">Request a Pickup</a><a class="btn btn-secondary" href="/impact">Explore Impact</a></div></div>
+<div class="flow" role="img" aria-label="Construction waste is collected, recycled, and its environmental impact measured">
+<div class="tile"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 40 16 18l8 10 6-14 12 26z" fill="currentColor"/></svg>Site waste</div><i aria-hidden="true">›</i>
+<div class="tile"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M4 14h26v18H4zM30 20h10l4 6v6H30z" fill="currentColor"/><circle cx="14" cy="35" r="4" fill="#fff" stroke="currentColor" stroke-width="3"/><circle cx="37" cy="35" r="4" fill="#fff" stroke="currentColor" stroke-width="3"/></svg>Collection</div><i aria-hidden="true">›</i>
+<div class="tile"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6a18 18 0 1 0 18 18h-6a12 12 0 1 1-12-12V6zm4-4 10 8-10 8z" fill="currentColor"/></svg>Recycling</div><i aria-hidden="true">›</i>
+<div class="tile"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 40C8 18 22 8 42 8c0 22-12 32-28 32l-4 4-2-4z" fill="currentColor"/></svg>Impact</div></div></section>
+
+<section class="block"><h2>How WasteMaster works</h2>
+<ol class="steps"><li><b>Post waste</b><span>Describe the material, quantity and site.</span></li><li><b>Get matched</b><span>An approved provider accepts the job.</span></li><li><b>Schedule pickup</b><span>The request moves to Scheduled.</span></li><li><b>Track collection</b><span>Picked up, then Completed.</span></li><li><b>Measure impact</b><span>Completed jobs feed the impact page.</span></li></ol></section>
+
+<section class="block"><h2>Key features</h2><div class="grid3">
+<div class="card"><h3>Pickup tracking</h3><p>Every request has a full status history.</p><span class="badge s-Completed">Available</span></div>
+<div class="card"><h3>Environmental analytics</h3><p>Tonnes diverted and estimated CO₂e by material.</p><span class="badge s-Completed">Available</span></div>
+<div class="card"><h3>Material exchange</h3><p>List reusable leftovers for other builders.</p><span class="badge s-Completed">Available</span></div>
+<div class="card"><h3>AI waste classification</h3><p>Identify material from a photo.</p><span class="badge s-Pending">Coming soon</span></div>
+<div class="card"><h3>Smart provider matching</h3><p>Rank providers by material, distance and availability.</p><span class="badge s-Pending">Coming soon</span></div>
+<div class="card"><h3>Digital waste manifests</h3><p>Downloadable PDF record for each completed job.</p><span class="badge s-Pending">Coming soon</span></div></div></section>
+
+<section class="block"><h2>Environmental impact</h2>
+{% if t.jobs %}<div class="grid3"><div class="kpi"><b>{{ t.tons }} t</b><span>Waste diverted</span></div><div class="kpi"><b>{{ t.jobs }}</b><span>Completed pickups</span></div><div class="kpi"><b>{{ t.co2 }} t</b><span>Estimated CO₂e avoided</span></div></div>
+{% else %}<div class="empty"><h3>No completed pickups yet.</h3><p>Impact figures appear here once the first pickup is completed.</p></div>{% endif %}</section>
+
+<section class="cta"><h2>Start managing construction waste smarter.</h2><a class="btn" href="/register">Create a free account</a></section>
+{% endblock %}

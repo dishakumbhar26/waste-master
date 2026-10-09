@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}{{ 'Sign up' if mode=='register' else 'Log in' }} · WasteMaster{% endblock %}{% block body %}
+<form class="card form narrow" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><h2>{{ 'Create your account' if mode=='register' else 'Log in' }}</h2>
+{% if error %}<div class="alert err" role="alert">{{ error }}</div>{% endif %}
+{% if mode=='register' %}<label>Username<input name="username" autocomplete="username" required></label>{% endif %}
+<label>Email<input type="email" name="email" autocomplete="email" required></label>
+<label>Password<input type="password" name="password" minlength="6" autocomplete="{{ 'new-password' if mode=='register' else 'current-password' }}" required></label>
+{% if mode=='register' %}<label>I am a<select name="role"><option value="builder">Builder with waste to move</option><option value="provider">Recycler or waste provider (needs admin approval)</option></select></label>{% endif %}
+<button class="btn btn-block">{{ 'Sign up' if mode=='register' else 'Log in' }}</button>
+<p class="muted">{% if mode=='register' %}Already registered? <a href="/login">Log in</a>{% else %}New here? <a href="/register">Create an account</a>{% endif %}</p></form>{% endblock %}

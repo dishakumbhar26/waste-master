@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16
+    environment: {POSTGRES_PASSWORD: wastemaster, POSTGRES_DB: wastemaster}
+  web:
+    build: .
+    ports: ["8000:8000"]
+    depends_on: [db]
+    environment:
+      DATABASE_URL: postgresql://postgres:wastemaster@db:5432/wastemaster
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

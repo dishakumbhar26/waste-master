@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block title %}Dashboard · WasteMaster{% endblock %}
+{% block header %}<div class="page-head"><div class="container row"><div><h1>Welcome, {{ user.username }}</h1>
+<p>{{ 'Manage your construction waste pickups.' if user.role=='builder' else 'Find jobs and manage your pickups.' }}</p></div>
+{% if user.role=='builder' %}<a class="btn" href="/requests/new">Create New Pickup</a>{% endif %}</div></div>{% endblock %}
+{% block body %}
+{% set done = mine|selectattr('status','equalto','Completed')|list %}
+{% if user.role=='builder' %}
+<div class="grid4"><div class="kpi"><b>{{ mine|selectattr('status','equalto','Open')|list|length }}</b><span>Active requests</span></div>
+<div class="kpi"><b>{{ mine|selectattr('status','in',['Scheduled','Picked up'])|list|length }}</b><span>Scheduled pickups</span></div>
+<div class="kpi"><b>{{ done|length }}</b><span>Completed pickups</span></div>
+<div class="kpi"><b>{{ done|sum(attribute='tons')|round(1) }} t</b><span>Total waste diverted</span></div></div>
+<h2>Your pickup requests</h2>
+{% else %}
+{% if not user.approved %}<div class="alert warn" role="status">Your provider account is waiting for admin approval. You can accept jobs once it is approved.</div>{% endif %}
+<div class="grid4"><div class="kpi"><b>{{ open|length }}</b><span>Available jobs</span></div>
+<div class="kpi"><b>{{ mine|rejectattr('status','equalto','Completed')|list|length }}</b><span>Active jobs</span></div>
+<div class="kpi"><b>{{ done|length }}</b><span>Completed jobs</span></div>
+<div class="kpi"><b>{{ done|sum(attribute='tons')|round(1) }} t</b><span>Tonnes collected</span></div></div>
+<h2>Available jobs</h2>
+{% if open %}<div class="table-wrap"><table><thead><tr><th>ID</th><th>Material</th><th>Quantity</th><th>Location</th><th>Pickup date</th><th>Actions</th></tr></thead><tbody>
+{% for q in open %}<tr><td data-label="ID">#{{ q.id }}</td><td data-label="Material">{{ q.waste_type }}</td><td data-label="Quantity">{{ q.tons }} t</td><td data-label="Location">{{ q.location }}</td><td data-label="Pickup date">{{ q.pickup_date }}</td>
+<td data-label="Actions"><form method="post" action="/requests/{{ q.id }}/accept"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm">Accept job</button></form></td></tr>{% endfor %}</tbody></table></div>
+{% else %}<div class="empty"><h3>No open jobs right now.</h3><p>New builder requests appear here as soon as they are posted.</p></div>{% endif %}
+<h2>My jobs</h2>
+{% endif %}
+{% if mine %}<div class="table-wrap"><table><thead><tr><th>ID</th><th>Material</th><th>Quantity</th><th>Location</th><th>Pickup date</th>{% if user.role=='builder' %}<th>Provider</th>{% endif %}<th>Status</th><th>Actions</th></tr></thead><tbody>
+{% for q in mine %}<tr><td data-label="ID">#{{ q.id }}</td><td data-label="Material">{{ q.waste_type }}</td><td data-label="Quantity">{{ q.tons }} t</td><td data-label="Location">{{ q.location }}</td><td data-label="Pickup date">{{ q.pickup_date }}</td>
+{% if user.role=='builder' %}<td data-label="Provider">{{ names.get(q.provider_id, 'Not assigned yet') if q.provider_id else 'Not assigned yet' }}</td>{% endif %}
+<td data-label="Status"><span class="badge s-{{ q.status|replace(' ','') }}">{{ q.status }}</span></td>
+<td data-label="Actions" class="acts"><a class="btn btn-secondary btn-sm" href="/requests/{{ q.id }}">View</a>
+{% if user.role=='provider' and q.status!='Completed' %}<form method="post" action="/requests/{{ q.id }}/advance"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm">Mark {{ {'Scheduled':'picked up','Picked up':'completed'}[q.status] }}</button></form>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<div class="empty"><h3>{{ 'No pickup requests yet.' if user.role=='builder' else 'No jobs accepted yet.' }}</h3>
+<p>{{ 'Create your first pickup request to start managing construction waste.' if user.role=='builder' else 'Accept an available job to see it here.' }}</p>
+{% if user.role=='builder' %}<a class="btn" href="/requests/new">Request a Pickup</a>{% endif %}</div>{% endif %}
+{% endblock %}

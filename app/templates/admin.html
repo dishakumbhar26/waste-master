@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Admin · WasteMaster{% endblock %}
+{% block header %}<div class="page-head"><div class="container"><h1>Admin Panel</h1><p>Approve providers and oversee requests.</p></div></div>{% endblock %}
+{% block body %}
+<div class="grid4"><div class="kpi"><b>{{ pend|length }}</b><span>Pending providers</span></div><div class="kpi"><b>{{ reqs|rejectattr('status','equalto','Completed')|list|length }}</b><span>Active requests</span></div><div class="kpi"><b>{{ t.jobs }}</b><span>Completed requests</span></div><div class="kpi"><b>{{ t.tons }} t</b><span>Total waste diverted</span></div></div>
+<h2>Provider approval</h2>
+{% if pend %}<div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Actions</th></tr></thead><tbody>{% for p in pend %}<tr><td data-label="Name">{{ p.username }}</td><td data-label="Email">{{ p.email }}</td><td data-label="Actions"><form method="post" action="/admin/approve/{{ p.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm">Approve</button></form></td></tr>{% endfor %}</tbody></table></div>
+{% else %}<div class="empty"><h3>No providers awaiting approval.</h3><p>New provider sign-ups will appear here.</p></div>{% endif %}
+<h2>All requests ({{ reqs|length }})</h2>
+{% if reqs %}<div class="table-wrap"><table><thead><tr><th>ID</th><th>Material</th><th>Quantity</th><th>Status</th><th></th></tr></thead><tbody>{% for q in reqs %}<tr><td data-label="ID">#{{ q.id }}</td><td data-label="Material">{{ q.waste_type }}</td><td data-label="Quantity">{{ q.tons }} t</td><td data-label="Status"><span class="badge s-{{ q.status|replace(' ','') }}">{{ q.status }}</span></td><td><a class="btn btn-secondary btn-sm" href="/requests/{{ q.id }}">View</a></td></tr>{% endfor %}</tbody></table></div>
+{% else %}<div class="empty"><h3>No requests yet.</h3></div>{% endif %}{% endblock %}
